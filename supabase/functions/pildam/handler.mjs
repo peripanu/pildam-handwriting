@@ -39,7 +39,8 @@ export function createHandler(env, fetcher=fetch){
   async function limited(bucket,max,expires){return rpc('pildam_throttle',{p_bucket:bucket,p_max:max,p_expiry:new Date(expires).toISOString()});}
   async function handle(request){
     const path=new URL(request.url).pathname.split('/').pop(),now=Date.now();
-    if(!env.CLASS_CODE||env.CLASS_CODE.length<12||!env.SUPABASE_SERVICE_ROLE_KEY)return json({error:'선생님이 수업을 준비하고 있어요.'},503);
+    if(!env.CLASS_CODE||env.CLASS_CODE.length<12)return json({error:'선생님이 12자 이상의 수업 코드를 설정해야 합니다.'},503);
+    if(!env.SUPABASE_SERVICE_ROLE_KEY)return json({error:'서버 연결 설정을 확인해야 합니다.'},503);
     const auth=await session(request,env);
     if(path==='status'&&request.method==='GET')return json({requiresLogin:true,authenticated:!!auth,configured:!!env.GOOGLE_VISION_API_KEY,token:auth?.csrf||null});
     if(request.method!=='POST')return json({error:'찾을 수 없는 요청입니다.'},404);

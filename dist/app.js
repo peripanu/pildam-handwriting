@@ -64,13 +64,19 @@ $('captureBtn').onclick=async()=>{
     await analyze();
   }catch(e){status('사진을 처리하지 못했어요. 다시 촬영해주세요.');}
 };
+function updatePassageLength(){
+  $('passageLength').textContent=`${$('reference').value.length.toLocaleString()}자 / 최대 1,000자 · 공백 포함`;
+  $('reference').style.height='auto';
+  $('reference').style.height=Math.min(640,Math.max(160,$('reference').scrollHeight+2))+'px';
+}
+updatePassageLength();
 $('sentenceChoice').onchange=()=>{
   const custom=$('sentenceChoice').value==='custom';$('reference').readOnly=!custom;
-  $('reference').value=custom?'':$('sentenceChoice').value;clearResult();
+  $('reference').value=custom?'':$('sentenceChoice').value;updatePassageLength();clearResult();
   status('문장이 바뀌었어요. 새 문장을 쓴 사진으로 분석해주세요.');
   if(custom)$('reference').focus();
 };
-$('reference').oninput=()=>{clearResult();status('변경한 문장으로 다음 분석을 진행합니다.');};
+$('reference').oninput=()=>{updatePassageLength();clearResult();status('변경한 문장으로 다음 분석을 진행합니다.');};
 function render(data,reference){
   const text=(data.text||'').trim();const result=SentenceComparison.compare(reference,text);const score=result.score;
   $('emptyScore').style.display='none';$('result').classList.add('show');
@@ -135,6 +141,7 @@ $('cancelBtn').onclick=()=>cancel('화면의 분석 대기를 취소했어요. �
 async function analyze(){
   if(busy||!hasPhoto)return;
   const reference=$('reference').value.trim();
+  if(reference.length>1000){status('연습 글은 1,000자 이내로 입력해주세요.');return;}
   if(!SentenceComparison.normalize(reference).length){status('따라 쓸 문장을 먼저 입력해주세요.');$('reference').focus();return;}
   await refreshCloud();
   if(cloudState?.requiresLogin&&!cloudState.authenticated){status('수업 코드를 먼저 입력해주세요.');return;}

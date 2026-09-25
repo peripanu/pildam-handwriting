@@ -1,6 +1,6 @@
 # GitHub Pages + Supabase 배포
 
-현재 상태(2026-09-25): 서울 지역 pildam 프로젝트(ptbbcrrvndahevhbhfib) 생성, DB 마이그레이션과 15분 주기 삭제 작업 적용, Edge Function pildam 배포 완료. 로컬 사용량 9회를 반영했습니다. 비밀값 등록·GitHub 저장소 생성·Pages 배포는 아직입니다. GitHub 브라우저 로그인 대기 중입니다. 기존 로컬 OCR 서버는 그대로 사용 가능합니다.
+현재 상태(2026-09-25): 서울 지역 pildam 프로젝트(ptbbcrrvndahevhbhfib) 생성, DB 마이그레이션과 15분 주기 삭제 작업 적용, Edge Function pildam 배포 완료. 로컬 사용량 9회를 반영했습니다. 전용 공개 저장소 https://github.com/peripanu/pildam-handwriting 생성, Pages Actions 설정과 공개 API 변수 등록 완료. 첫 배포 실행 https://github.com/peripanu/pildam-handwriting/actions/runs/36123249624 성공. 학생 화면 https://peripanu.github.io/pildam-handwriting/ 확인 완료(현재 서버 비밀값 미설정으로 연결되지 않음). Supabase 브라우저 로그인 및 비밀값 등록이 남아 있습니다. 기존 로컬 OCR 서버는 그대로 사용 가능합니다.
 
 공개 API 주소: https://ptbbcrrvndahevhbhfib.supabase.co/functions/v1/pildam
 
@@ -38,3 +38,13 @@
 - 사진 원본은 앱 저장소에 저장하지 않습니다. Google로는 분석할 때 전송됩니다.
 - 결과 텍스트는 1시간 재사용 후 정기 삭제합니다. Cron이 꺼지거나 실패하면 삭제가 지연되므로 운영 전 확인합니다.
 - GitHub Pages와 Supabase 사이의 CORS는 실제 origin 하나만 허용합니다. CORS 자체는 인증이 아니며, 모든 OCR 요청은 별도로 서명된 세션을 검사합니다.
+
+## 이번 배포의 비밀 설정
+
+Supabase 프로젝트 → Edge Functions → Secrets에서 다음 값을 등록합니다.
+
+- `APP_ORIGIN`: `https://peripanu.github.io` (끝 슬래시와 저장소 경로 없음)
+- `CLASS_CODE`: 선생님이 정한 12자 이상 수업 코드
+- `GOOGLE_VISION_API_KEY`: 기존 Google Cloud Vision API 키
+
+API 키와 수업 코드를 채팅이나 GitHub 파일에 넣지 않습니다. 프로젝트 비밀 설정은 https://supabase.com/dashboard/project/ptbbcrrvndahevhbhfib/functions/secrets 입니다.

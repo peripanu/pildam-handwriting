@@ -1,0 +1,5 @@
+project_id = "pildam-handwriting"
+# Custom signed class-code sessions are checked inside the handler before OCR.
+# Never deploy a handler without these checks with verify_jwt=false.
+[functions.pildam]
+verify_jwt = false

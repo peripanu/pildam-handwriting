@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');
+const {compare}=require('../dist/comparison.js');
+assert.equal(compare('오늘은 맑음.','오늘은\n맑음').score,100);
+const mixed=compare('가나다라','가마라');
+assert.equal(mixed.score,50);assert.equal(mixed.errors,2);
+assert.equal(compare('가나다라','가나다라마').score,75);
+assert.equal(compare('가나다','').score,null);
+assert.equal(compare('가나다','라마바').score,0);
+assert.equal(compare('가나다','가나다'.normalize('NFD')).score,100);
+assert.throws(()=>compare('...','가나다'));
+console.log('Sentence comparison regression checks passed.');

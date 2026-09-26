@@ -101,32 +101,61 @@ function render(data,reference){
   $('feedback').textContent=score===null?'쓴 문장이 크게 보이도록 밝은 곳에서 다시 찍어주세요. OCR이 손글씨를 읽지 못한 경우일 수도 있어요.':score===100?'원문과 모두 일치했어요. 같은 문장을 다시 쓰면서 글자 크기와 간격도 살펴보세요.':'표시된 글자를 사진과 비교해주세요. 획이 붙었는지, 자음·모음이 구별되는지 살펴보고 같은 문장을 다시 써보세요. OCR의 오류일 수도 있으므로 표시된 글자를 모두 잘못 쓴 것으로 보지는 마세요.';
 }
 let cloudState=null, controller=null;
+const teacherMode=new URLSearchParams(location.search).has('teacher');
 const localMode=['127.0.0.1','localhost'].includes(location.hostname);
-$('teacherLink').hidden=!localMode;
+if(teacherMode){
+  $('gateTitle').textContent='선생님 설정으로 들어가기';
+  $('gateHelp').textContent='학생에게 공개하지 않는 선생님용 코드를 입력해주세요.';
+  $('codeLabel').textContent='선생님용 코드';
+  $('loginBtn').textContent='설정 열기';
+  $('selectorWrap').hidden=false;$('reference').readOnly=false;
+  $('assignmentTitle').hidden=false;$('assignmentTitle').placeholder='연습 글 제목';
+  $('referenceLabel').textContent='학생에게 보낼 연습 글';
+  $('saveAssignment').hidden=false;
+}else $('selectorWrap').hidden=true;
 $('teacherPanel').hidden=!(localMode&&new URLSearchParams(location.search).has('teacher'));
 if(!$('teacherPanel').hidden)$('teacherPanel').open=true;
+async function loadAssignment(){
+  const response=await apiFetch('/api/assignment',{cache:'no-store'});
+  const data=await response.json();if(!response.ok)throw new Error(data.error||'연습 글을 불러오지 못했어요.');
+  const a=data.assignment;if(!a)return;
+  $('reference').value=a.content;$('assignmentTitle').value=a.title;updatePassageLength();
+  if(!teacherMode){$('practiceTitle').textContent='01. 오늘의 연습 글 · '+a.title;$('reference').readOnly=true;}
+}
 async function refreshCloud(){
   try{
     const response=await apiFetch('/api/status',{cache:'no-store'});
     if(!response.ok)throw new Error();cloudState=await response.json();
     const needsLogin=cloudState.requiresLogin&&!cloudState.authenticated;
-    $('teacherLink').hidden=!localMode||!!cloudState.requiresLogin;
+    $('teacherLink').hidden=!cloudState.teacherReady&&!localMode;
     if(cloudState.requiresLogin)$('teacherPanel').hidden=true;
-    $('loginPanel').hidden=!needsLogin;$('studentWorkspace').hidden=needsLogin;
+    const wrongRole=cloudState.authenticated&&(teacherMode?cloudState.role!=='teacher':cloudState.role!=='student');
+    $('loginPanel').hidden=cloudState.authenticated&&!wrongRole;$('studentWorkspace').hidden=needsLogin||wrongRole;
     $('cloudStatus').textContent=needsLogin?'수업 코드로 들어오면 사진을 분석할 수 있어요.':cloudState.configured?'손글씨 인식 준비 완료':localMode&&!cloudState.requiresLogin?'아직 연결되지 않았어요. 위쪽 선생님 설정에서 키를 연결해주세요.':'선생님이 인식 서비스를 준비하고 있어요. 잠시 후 다시 접속해주세요.';
     if(localMode&&new URLSearchParams(location.search).has('teacher')&&cloudState.configured)$('cloudStatus').textContent+=` · 누적 외부 요청 ${cloudState.used} / ${cloudState.limit}건`;
     $('keySetup').hidden=!localMode;
+    if(cloudState.authenticated&&!wrongRole)await loadAssignment();
   }catch(e){cloudState=null;$('cloudStatus').textContent='연결 상태를 확인하지 못했어요. 인터넷 연결을 확인하고 새로고침해주세요.';}
 }
 $('loginForm').onsubmit=async event=>{
   event.preventDefault();$('loginBtn').disabled=true;$('loginError').textContent='';
   try{
-    const response=await apiFetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:$('classCode').value})});
+    const response=await apiFetch(teacherMode?'/api/teacher-login':'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:$('classCode').value})});
     const data=await response.json();if(!response.ok)throw new Error(data.error||'수업 코드를 확인해주세요.');
     if(data.session)sessionToken=data.session;
     $('classCode').value='';await refreshCloud();
   }catch(error){$('loginError').textContent=error.message;}
   finally{$('loginBtn').disabled=false;}
+};
+$('saveAssignment').onclick=async()=>{
+  if(!cloudState?.authenticated||cloudState.role!=='teacher'){status('선생님용 코드로 먼저 들어와주세요.');return;}
+  try{
+    const title=$('assignmentTitle').value.trim()||'오늘의 연습 글',content=$('reference').value.trim();
+    const response=await apiFetch('/api/assignment',{method:'POST',headers:{'Content-Type':'application/json','X-App-Token':cloudState.token},body:JSON.stringify({title,content})});
+    const data=await response.json();if(!response.ok)throw new Error(data.error||'연습 글을 저장하지 못했어요.');
+    $('assignmentTitle').value=data.assignment.title;$('reference').value=data.assignment.content;updatePassageLength();
+    status('학생 화면에 연습 글을 보냈어요. 학생이 새로고침하거나 다시 들어오면 이 글이 표시됩니다.');
+  }catch(error){status(error.message);}
 };
 $('connectKey').onclick=async()=>{
   if(!cloudState){status('외부 OCR용 로컬 앱을 먼저 열어주세요.');return;}

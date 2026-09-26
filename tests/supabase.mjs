@@ -3,6 +3,8 @@ import {createHandler} from '../supabase/functions/pildam/handler.mjs';
 const env={SUPABASE_URL:'https://project.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'server-secret',CLASS_CODE:'test-class-code-2026',GOOGLE_VISION_API_KEY:'test-key',APP_ORIGIN:'https://example.github.io'};
 let visionCalls=0,rpcCalls=0,claimState='claimed';
 const handler=createHandler(env,async(url,options)=>{
+  if(url.includes('/rest/v1/pildam_class_settings'))return Response.json([{student_code:null,accuracy_weight:75}]);
+  if(url.includes('/rest/v1/pildam_assignment'))return Response.json([{title:'연습',content:'오늘은 맑음'}]);
   if(url.includes('/rest/v1/rpc/')){
     rpcCalls++;assert.equal(options.headers.Authorization,'Bearer server-secret');
     if(url.endsWith('pildam_throttle'))return Response.json(true);
@@ -13,7 +15,10 @@ const handler=createHandler(env,async(url,options)=>{
   assert.equal(url,'https://vision.googleapis.com/v1/images:annotate');visionCalls++;
   assert.equal(options.headers['X-Goog-Api-Key'],'test-key');
   const payload=JSON.parse(options.body);assert.deepEqual(payload.requests[0].features,[{type:'DOCUMENT_TEXT_DETECTION'}]);assert.equal(payload.reference,undefined);
-  return Response.json({responses:[{fullTextAnnotation:{text:'오늘은 맑음'}}]});
+  return Response.json({responses:[{fullTextAnnotation:{text:'오늘은 맑음',pages:[{blocks:[{paragraphs:[{words:[
+    {confidence:.9,boundingBox:{vertices:[{y:0},{y:10},{y:10},{y:0}]}},
+    {confidence:.8,boundingBox:{vertices:[{y:0},{y:12},{y:12},{y:0}]}}
+  ]}]}]}]}}]});
 });
 const req=(path,data,headers={},method)=>new Request('https://project.supabase.co/functions/v1/pildam/'+path,{method:method||(data===undefined?'GET':'POST'),headers:{Origin:env.APP_ORIGIN,'Content-Type':'application/json',...headers},body:data===undefined?undefined:JSON.stringify(data)});
 let r=await handler(req('status',undefined,{Origin:'https://other.test'}));assert.equal(r.status,403);assert.equal(rpcCalls,0);

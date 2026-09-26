@@ -78,13 +78,16 @@ $('sentenceChoice').onchange=()=>{
 };
 $('reference').oninput=()=>{updatePassageLength();clearResult();status('변경한 문장으로 다음 분석을 진행합니다.');};
 function render(data,reference){
-  const text=(data.text||'').trim();const result=SentenceComparison.compare(reference,text);const score=result.score;
+  const text=(data.text||'').trim();const result=SentenceComparison.compare(reference,text),accuracy=result.score,quality=data.quality?.score??null;
+  const score=accuracy===null?null:quality===null?accuracy:Math.round(accuracy*.75+quality*.25);
   $('emptyScore').style.display='none';$('result').classList.add('show');
   $('total').textContent=score===null?'—':score;$('ring').style.setProperty('--score',score??0);
-  $('grade').textContent=score===null?'글자를 찾지 못했어요':'문장 인식 일치도';
-  $('summary').textContent=score===null?'점수를 내지 않았어요.':'지정 문장과 OCR 결과 비교 / 100';
+  $('grade').textContent=score===null?'글자를 찾지 못했어요':'읽기 쉬운 필기 참고 점수';
+  $('summary').textContent=score===null?'점수를 내지 않았어요.':quality===null?'문장 인식 일치도 / 100':'문장 일치도와 필기 형태 참고를 합산 / 100';
   $('level').textContent='교정 연습 참고용';
-  $('confidence').textContent=score===null?'측정 불가':score+'점';$('confidenceBar').style.width=(score??0)+'%';
+  $('confidence').textContent=accuracy===null?'측정 불가':accuracy+'점';$('confidenceBar').style.width=(accuracy??0)+'%';
+  $('writingQuality').textContent=quality===null?'측정 불가':quality+'점';$('writingQualityBar').style.width=(quality??0)+'%';
+  $('writingQualityNote').textContent=quality===null?'이번 결과는 OCR 텍스트만 비교했어요.':'글자 크기 균일성 '+data.quality.sizeConsistency+'점'+(data.quality.recognitionConfidence===null?'': ' · 인식 신뢰도 '+data.quality.recognitionConfidence+'점')+'을 참고했어요.';
   $('ocrText').textContent=text||'인식된 텍스트가 없습니다.';
   const issues=result.edits.filter(e=>e.type!=='match');
   const count=type=>issues.filter(e=>e.type===type).length;

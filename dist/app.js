@@ -9,7 +9,7 @@ function apiFetch(path,options={}){
 const $ = id => document.getElementById(id);
 const camera=$('camera'), photo=$('photo');
 let stream=null, busy=false, worker=null, run=0, hasPhoto=false, opening=false;
-function status(text){$('status').textContent=text;}
+function status(text){$('status').textContent=text;if($('teacherStatus'))$('teacherStatus').textContent=text;}
 function clearResult(){ $('result').classList.remove('show'); $('emptyScore').style.display='block'; }
 function controls(){
   $('sentenceChoice').disabled=busy; $('reference').disabled=busy;
@@ -104,8 +104,13 @@ function render(data,reference){
   $('feedback').textContent=score===null?'쓴 문장이 크게 보이도록 밝은 곳에서 다시 찍어주세요. OCR이 손글씨를 읽지 못한 경우일 수도 있어요.':score===100?'원문과 모두 일치했어요. 같은 문장을 다시 쓰면서 글자 크기와 간격도 살펴보세요.':'표시된 글자를 사진과 비교해주세요. 획이 붙었는지, 자음·모음이 구별되는지 살펴보고 같은 문장을 다시 써보세요. OCR의 오류일 수도 있으므로 표시된 글자를 모두 잘못 쓴 것으로 보지는 마세요.';
 }
 let cloudState=null, controller=null, accuracyWeight=75;
-const teacherMode=new URLSearchParams(location.search).has('teacher');
+const routeParams=new URLSearchParams(location.search);
+const teacherMode=routeParams.has('teacher');
+const studentMode=routeParams.has('student');
+const landingMode=!teacherMode&&!studentMode;
 const localMode=['127.0.0.1','localhost'].includes(location.hostname);
+$('roleChooser').hidden=!landingMode;
+$('teacherLink').hidden=landingMode;
 if(teacherMode){
   $('gateTitle').textContent='선생님 설정으로 들어가기';
   $('gateHelp').textContent='학생에게 공개하지 않는 선생님용 코드를 입력해주세요.';
@@ -116,7 +121,14 @@ if(teacherMode){
   $('referenceLabel').textContent='학생에게 보낼 연습 글';
   $('saveAssignment').hidden=false;
   $('teacherControls').hidden=false;
-}else $('selectorWrap').hidden=true;
+  $('teacherStatus').hidden=false;
+  $('practiceSteps').hidden=true;
+  $('handwritingWorkspace').hidden=true;
+  $('privacyNote').hidden=true;
+  $('sentenceHelp').hidden=true;
+  $('ocrNotice').hidden=true;
+  $('practiceTitle').textContent='연습 글 지정';
+}else if(studentMode)$('selectorWrap').hidden=true;
 $('teacherPanel').hidden=!(localMode&&new URLSearchParams(location.search).has('teacher'));
 if(!$('teacherPanel').hidden)$('teacherPanel').open=true;
 async function loadAssignment(){
@@ -135,12 +147,17 @@ async function refreshCloud(){
   try{
     const response=await apiFetch('/api/status',{cache:'no-store'});
     if(!response.ok)throw new Error();cloudState=await response.json();
+    if(landingMode){
+      $('roleChooser').hidden=false;$('loginPanel').hidden=true;$('studentWorkspace').hidden=true;
+      $('cloudStatus').textContent='학생 또는 교사를 선택해 주세요.';
+      return;
+    }
     const needsLogin=cloudState.requiresLogin&&!cloudState.authenticated;
     $('teacherLink').hidden=false;
     if(cloudState.requiresLogin)$('teacherPanel').hidden=true;
     const wrongRole=cloudState.authenticated&&(teacherMode?cloudState.role!=='teacher':cloudState.role!=='student');
     $('loginPanel').hidden=cloudState.authenticated&&!wrongRole;$('studentWorkspace').hidden=needsLogin||wrongRole;
-    $('cloudStatus').textContent=needsLogin?'수업 코드로 들어오면 사진을 분석할 수 있어요.':cloudState.configured?'손글씨 인식 준비 완료':localMode&&!cloudState.requiresLogin?'아직 연결되지 않았어요. 위쪽 선생님 설정에서 키를 연결해주세요.':'선생님이 인식 서비스를 준비하고 있어요. 잠시 후 다시 접속해주세요.';
+    $('cloudStatus').textContent=needsLogin?(teacherMode?'선생님용 코드로 설정 화면에 들어갈 수 있어요.':'수업 코드로 들어오면 사진을 분석할 수 있어요.'):teacherMode?'교사용 설정을 변경할 수 있어요.':cloudState.configured?'손글씨 인식 준비 완료':localMode&&!cloudState.requiresLogin?'아직 연결되지 않았어요. 위쪽 선생님 설정에서 키를 연결해주세요.':'선생님이 인식 서비스를 준비하고 있어요. 잠시 후 다시 접속해주세요.';
     if(localMode&&new URLSearchParams(location.search).has('teacher')&&cloudState.configured)$('cloudStatus').textContent+=` · 누적 외부 요청 ${cloudState.used} / ${cloudState.limit}건`;
     $('keySetup').hidden=!localMode;
     if(cloudState.authenticated&&!wrongRole){await loadAssignment();if(teacherMode)await loadTeacherSettings();}

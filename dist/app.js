@@ -104,6 +104,12 @@ function render(data,reference){
   $('feedback').textContent=score===null?'쓴 문장이 크게 보이도록 밝은 곳에서 다시 찍어주세요. OCR이 손글씨를 읽지 못한 경우일 수도 있어요.':score===100?'원문과 모두 일치했어요. 같은 문장을 다시 쓰면서 글자 크기와 간격도 살펴보세요.':'표시된 글자를 사진과 비교해주세요. 획이 붙었는지, 자음·모음이 구별되는지 살펴보고 같은 문장을 다시 써보세요. OCR의 오류일 수도 있으므로 표시된 글자를 모두 잘못 쓴 것으로 보지는 마세요.';
 }
 let cloudState=null, controller=null, accuracyWeight=75;
+function syncAccuracyWeight(value){
+  accuracyWeight=Number(value)??75;
+  $('accuracyWeight').value=accuracyWeight;
+  $('accuracyWeightValue').textContent=accuracyWeight+'%';
+  $('formulaNote').textContent=`종합 점수는 문장 일치도 ${accuracyWeight}%와 필기 형태 참고 ${100-accuracyWeight}%를 합산합니다. 필기 형태 참고는 OCR이 감지한 글자 크기 균일성과 인식 신뢰도를 활용하며, 글씨의 아름다움이나 학생의 능력을 평가하지 않습니다.`;
+}
 const routeParams=new URLSearchParams(location.search);
 const teacherMode=routeParams.has('teacher');
 const studentMode=routeParams.has('student');
@@ -134,14 +140,14 @@ if(!$('teacherPanel').hidden)$('teacherPanel').open=true;
 async function loadAssignment(){
   const response=await apiFetch('/api/assignment',{cache:'no-store'});
   const data=await response.json();if(!response.ok)throw new Error(data.error||'연습 글을 불러오지 못했어요.');
-  const a=data.assignment;accuracyWeight=data.accuracyWeight??75;if(!a)return;
+  const a=data.assignment;syncAccuracyWeight(data.accuracyWeight??75);if(!a)return;
   $('reference').value=a.content;$('assignmentTitle').value=a.title;updatePassageLength();
   if(!teacherMode){$('practiceTitle').textContent='01. 오늘의 연습 글 · '+a.title;$('reference').readOnly=true;}
 }
 async function loadTeacherSettings(){
   const response=await apiFetch('/api/settings',{cache:'no-store'}),data=await response.json();
   if(!response.ok)throw new Error(data.error||'수업 설정을 불러오지 못했어요.');
-  accuracyWeight=data.accuracyWeight??75;$('accuracyWeight').value=accuracyWeight;$('accuracyWeightValue').textContent=accuracyWeight+'%';
+  syncAccuracyWeight(data.accuracyWeight??75);
 }
 async function refreshCloud(){
   try{
@@ -186,14 +192,16 @@ $('saveAssignment').onclick=async()=>{
 $('accuracyWeight').oninput=()=>{$('accuracyWeightValue').textContent=$('accuracyWeight').value+'%';};
 $('saveSettings').onclick=async()=>{
   if(!cloudState?.authenticated||cloudState.role!=='teacher'){status('선생님용 코드로 먼저 들어와주세요.');return;}
+  const button=$('saveSettings');button.disabled=true;status('수업·평가 설정을 저장하고 있어요.');
   try{
     const studentCode=$('studentCodeSetting').value,payload={accuracyWeight:Number($('accuracyWeight').value)};
     if(studentCode)payload.studentCode=studentCode;
     const response=await apiFetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json','X-App-Token':cloudState.token},body:JSON.stringify(payload)});
     const data=await response.json();if(!response.ok)throw new Error(data.error||'수업 설정을 저장하지 못했어요.');
-    accuracyWeight=data.accuracyWeight;$('studentCodeSetting').value='';$('accuracyWeight').value=accuracyWeight;$('accuracyWeightValue').textContent=accuracyWeight+'%';
-    status('수업 코드와 평가 비율을 저장했어요. 새 수업 코드는 다음 학생 로그인부터 적용됩니다.');
+    syncAccuracyWeight(data.accuracyWeight);$('studentCodeSetting').value='';
+    status(`문장 일치도 ${accuracyWeight}%로 저장했어요. 학생 화면에는 다음 분석부터 적용됩니다.`);
   }catch(error){status(error.message);}
+  finally{button.disabled=false;}
 };
 $('connectKey').onclick=async()=>{
   if(!cloudState){status('외부 OCR용 로컬 앱을 먼저 열어주세요.');return;}

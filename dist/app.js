@@ -118,9 +118,10 @@ const localMode=['127.0.0.1','localhost'].includes(location.hostname);
 $('roleChooser').hidden=!landingMode;
 $('teacherLink').hidden=landingMode;
 if(teacherMode){
-  $('gateTitle').textContent='선생님 설정으로 들어가기';
-  $('gateHelp').textContent='학생에게 공개하지 않는 선생님용 코드를 입력해주세요.';
-  $('codeLabel').textContent='선생님용 코드';
+  $('gateTitle').textContent='교사 수업 관리로 들어가기';
+  $('gateHelp').textContent='교사 아이디와 비밀번호를 입력하세요. 기존 관리자는 아이디를 비우고 기존 선생님용 코드를 입력할 수 있어요.';
+  $('teacherUsernameWrap').hidden=false;$('registerPanel').hidden=false;
+  $('codeLabel').textContent='비밀번호';
   $('loginBtn').textContent='설정 열기';
   $('selectorWrap').hidden=false;$('reference').readOnly=false;
   $('assignmentTitle').hidden=false;$('assignmentTitle').placeholder='연습 글 제목';
@@ -148,6 +149,7 @@ async function loadTeacherSettings(){
   const response=await apiFetch('/api/settings',{cache:'no-store'}),data=await response.json();
   if(!response.ok)throw new Error(data.error||'수업 설정을 불러오지 못했어요.');
   syncAccuracyWeight(data.accuracyWeight??75);
+  $('studentCodeSetting').placeholder=data.studentCode?`현재 코드: ${data.studentCode}`:'새 코드 입력: 4~32자';
 }
 async function refreshCloud(){
   try{
@@ -172,12 +174,24 @@ async function refreshCloud(){
 $('loginForm').onsubmit=async event=>{
   event.preventDefault();$('loginBtn').disabled=true;$('loginError').textContent='';
   try{
-    const response=await apiFetch(teacherMode?'/api/teacher-login':'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:$('classCode').value})});
+    const username=teacherMode?$('teacherUsername').value.trim():'';
+    const payload=teacherMode?(username?{username,password:$('classCode').value}:{code:$('classCode').value}):{code:$('classCode').value};
+    const response=await apiFetch(teacherMode?'/api/teacher-login':'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const data=await response.json();if(!response.ok)throw new Error(data.error||'수업 코드를 확인해주세요.');
     if(data.session)sessionToken=data.session;
     $('classCode').value='';await refreshCloud();
   }catch(error){$('loginError').textContent=error.message;}
   finally{$('loginBtn').disabled=false;}
+};
+$('registerForm').onsubmit=async event=>{
+  event.preventDefault();if(!teacherMode)return;
+  $('registerBtn').disabled=true;$('registerError').textContent='';
+  try{
+    const response=await apiFetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('registerUsername').value,password:$('registerPassword').value,inviteCode:$('inviteCode').value})});
+    const data=await response.json();if(!response.ok)throw new Error(data.error||'교사 계정을 만들지 못했어요.');
+    sessionToken=data.session;$('registerForm').reset();$('registerPanel').open=false;await refreshCloud();status('교사 계정을 만들었어요. 이제 수업 코드와 연습 글을 설정해주세요.');
+  }catch(error){$('registerError').textContent=error.message;}
+  finally{$('registerBtn').disabled=false;}
 };
 $('saveAssignment').onclick=async()=>{
   if(!cloudState?.authenticated||cloudState.role!=='teacher'){status('선생님용 코드로 먼저 들어와주세요.');return;}
